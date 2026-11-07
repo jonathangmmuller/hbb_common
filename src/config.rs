@@ -2945,7 +2945,11 @@ pub fn option2bool(option: &str, value: &str) -> bool {
 }
 
 pub fn use_ws() -> bool {
-    true
+    // Modo padrão (UDP/TCP 21116 + relay 21117): o hbbs gratuito responde NOT_SUPPORT
+    // ao registro de dispositivo feito por WebSocket, então forçar WS deixa o app
+    // preso em "conectando à rede".
+    let option = keys::OPTION_ALLOW_WEBSOCKET;
+    option2bool(option, &Config::get_option(option))
 }
 
 pub fn allow_insecure_tls_fallback() -> bool {
