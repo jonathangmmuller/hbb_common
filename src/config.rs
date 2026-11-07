@@ -125,10 +125,10 @@ const CHARS: &[char] = &[
 pub const RENDEZVOUS_SERVERS: &[&str] = &["suporte.vancin.com.br"];
 pub const RS_PUB_KEY: &str = "cvP6sqoPZtgLuK7dbR9ZceCbOGwjaFkK84Hh083ymFM=";
 
-pub const RENDEZVOUS_PORT: i32 = 21116;
-pub const RELAY_PORT: i32 = 21117;
-pub const WS_RENDEZVOUS_PORT: i32 = 21118;
-pub const WS_RELAY_PORT: i32 = 21119;
+pub const RENDEZVOUS_PORT: i32 = 7116; // abaixo de 10k: 16384-32768 UDP é RTP da telefonia
+pub const RELAY_PORT: i32 = 7117;
+pub const WS_RENDEZVOUS_PORT: i32 = 7118;
+pub const WS_RELAY_PORT: i32 = 7119;
 
 #[inline]
 pub fn is_service_ipc_postfix(postfix: &str) -> bool {
@@ -2945,7 +2945,7 @@ pub fn option2bool(option: &str, value: &str) -> bool {
 }
 
 pub fn use_ws() -> bool {
-    // Modo padrão (UDP/TCP 21116 + relay 21117): o hbbs gratuito responde NOT_SUPPORT
+    // Modo padrão (UDP/TCP 7116 + relay 7117): o hbbs gratuito responde NOT_SUPPORT
     // ao registro de dispositivo feito por WebSocket, então forçar WS deixa o app
     // preso em "conectando à rede".
     let option = keys::OPTION_ALLOW_WEBSOCKET;
