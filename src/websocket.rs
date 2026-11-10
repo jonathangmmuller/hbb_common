@@ -1,7 +1,7 @@
 use crate::{
     config::{
         keys::{OPTION_RELAY_SERVER, OPTION_WEBSOCKET_PORT},
-        use_ws, Config, Socks5Server, EXE_RENDEZVOUS_SERVER, PROD_RENDEZVOUS_SERVER, RELAY_PORT,
+        use_ws, Config, Socks5Server, EXE_RENDEZVOUS_SERVER, PROD_RENDEZVOUS_SERVER,
         RENDEZVOUS_PORT,
     },
     protobuf::Message,
@@ -456,6 +456,26 @@ pub fn is_ws_endpoint(endpoint: &str) -> bool {
     endpoint.starts_with("ws://") || endpoint.starts_with("wss://")
 }
 
+/// Decide se a porta vai para o registro (`/ws/id`) ou para o relay (`/ws/relay`) e qual a
+/// porta WS correspondente. No nosso próprio servidor (`own_server`), a porta compilada
+/// RENDEZVOUS_PORT (e a de online, uma abaixo) vale sempre:
+/// uma configuração antiga gravada no PC (ex.: `servidor:21116` de versão anterior) não pode
+/// desviar o registro para o relay — foi o que deixou o app sem conectar em 10/11/2026.
+/// Relays de outros servidores seguem a regra original.
+fn ws_route(endpoint_port: i32, rendezvous_port: i32, own_server: bool) -> (bool, i32) {
+    if endpoint_port == rendezvous_port || (own_server && endpoint_port == RENDEZVOUS_PORT) {
+        // rendezvous
+        (false, endpoint_port + 2)
+    } else if endpoint_port == rendezvous_port - 1 || (own_server && endpoint_port == RENDEZVOUS_PORT - 1) {
+        // online
+        (false, endpoint_port + 3)
+    } else {
+        // relay (porta do relay ou rendezvous + 1) e fallback relay: para o lado que controla,
+        // o relay vem do lado controlado, sem relação com a config local.
+        (true, endpoint_port + 2)
+    }
+}
+
 /**
  * Core function to convert an endpoint to WebSocket format
  *
@@ -490,26 +510,14 @@ pub fn check_ws(endpoint: &str) -> String {
     let rendezvous_port = split_host_port(&custom_rendezvous_server)
         .map(|(_, p)| p)
         .unwrap_or(RENDEZVOUS_PORT);
-    let relay_port = split_host_port(&relay_server)
-        .map(|(_, p)| p)
-        .unwrap_or(RELAY_PORT);
 
-    let (relay, dst_port) = if endpoint_port == rendezvous_port {
-        // rendezvous
-        (false, endpoint_port + 2)
-    } else if endpoint_port == rendezvous_port - 1 {
-        // online
-        (false, endpoint_port + 3)
-    } else if endpoint_port == relay_port || endpoint_port == rendezvous_port + 1 {
-        // relay
-        // https://github.com/rustdesk/rustdesk/blob/6ffbcd1375771f2482ec4810680623a269be70f1/src/rendezvous_mediator.rs#L615
-        // https://github.com/rustdesk/rustdesk-server/blob/235a3c326ceb665e941edb50ab79faa1208f7507/src/relay_server.rs#L83, based on relay port.
-        (true, endpoint_port + 2)
-    } else {
-        // fallback relay
-        // for controlling side, relay server is passed from the controlled side, not related to local config.
-        (true, endpoint_port + 2)
-    };
+    let own_server = Config::get_rendezvous_servers().iter().any(|server| {
+        split_host_port(server)
+            .map(|(h, _)| h)
+            .unwrap_or_else(|| server.to_string())
+            .eq_ignore_ascii_case(&endpoint_host)
+    });
+    let (relay, dst_port) = ws_route(endpoint_port, rendezvous_port, own_server);
 
     let (address, is_domain) = if crate::is_ip_str(endpoint) {
         (format!("{}:{}", endpoint_host, dst_port), false)
@@ -611,6 +619,25 @@ mod tests {
             result
         );
         server.await.unwrap();
+    }
+
+    #[test]
+    fn test_ws_route_porta_antiga_gravada() {
+        let r = RENDEZVOUS_PORT;
+        let rl = crate::config::RELAY_PORT;
+        // config limpa
+        assert_eq!(ws_route(r, r, true), (false, r + 2));
+        assert_eq!(ws_route(r - 1, r, true), (false, r + 2));
+        assert_eq!(ws_route(rl, r, true), (true, rl + 2));
+        // nosso servidor com config antiga gravada (21116): registro e online em /ws/id
+        assert_eq!(ws_route(r, 21116, true), (false, r + 2));
+        assert_eq!(ws_route(r - 1, 21116, true), (false, r + 2));
+        assert_eq!(ws_route(21116, 21116, true), (false, 21118));
+        assert_eq!(ws_route(rl, 21116, true), (true, rl + 2));
+        // relay de outro servidor nas portas 7115/7116 continua relay (regra original)
+        assert_eq!(ws_route(r, 21116, false), (true, r + 2));
+        assert_eq!(ws_route(r - 1, 21116, false), (true, r + 1));
+        assert_eq!(ws_route(21117, 21116, false), (true, 21119));
     }
 
     #[test]
