@@ -82,7 +82,20 @@ lazy_static::lazy_static! {
     static ref USER_DEFAULT_CONFIG: RwLock<(UserDefaultConfig, Instant)> = RwLock::new((UserDefaultConfig::load(), Instant::now()));
     pub static ref NEW_STORED_PEER_CONFIG: Mutex<HashSet<String>> = Default::default();
     pub static ref DEFAULT_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
-    pub static ref OVERWRITE_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
+    // Suporte Vancin/TalkInCloud: servidor, relay, chave e WebSocket fixos. Valem acima de
+    // qualquer configuração gravada no PC (versão antiga, outro RustDesk, edição manual) e
+    // não podem ser salvos por cima (is_option_can_save recusa chave sobrescrita).
+    pub static ref OVERWRITE_SETTINGS: RwLock<HashMap<String, String>> = RwLock::new(
+        [
+            ("custom-rendezvous-server", RENDEZVOUS_SERVERS[0]),
+            ("relay-server", RENDEZVOUS_SERVERS[0]),
+            ("key", RS_PUB_KEY),
+            ("allow-websocket", "Y"),
+        ]
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect()
+    );
     pub static ref DEFAULT_DISPLAY_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
     pub static ref OVERWRITE_DISPLAY_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
     pub static ref DEFAULT_LOCAL_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
@@ -1056,6 +1069,10 @@ impl Config {
     }
 
     pub fn get_rendezvous_server() -> String {
+        // Sempre o nosso domínio (ignora nome do executável, opção gravada e cache antigo).
+        if let Some(s) = RENDEZVOUS_SERVERS.first() {
+            return format!("{s}:{RENDEZVOUS_PORT}");
+        }
         let mut rendezvous_server = EXE_RENDEZVOUS_SERVER.read().unwrap().clone();
         if rendezvous_server.is_empty() {
             rendezvous_server = Self::get_option("custom-rendezvous-server");
@@ -1079,6 +1096,9 @@ impl Config {
     }
 
     pub fn get_rendezvous_servers() -> Vec<String> {
+        if !RENDEZVOUS_SERVERS.is_empty() {
+            return RENDEZVOUS_SERVERS.iter().map(|x| x.to_string()).collect();
+        }
         let s = EXE_RENDEZVOUS_SERVER.read().unwrap().clone();
         if !s.is_empty() {
             return vec![s];
