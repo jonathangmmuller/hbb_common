@@ -2946,10 +2946,10 @@ pub fn option2bool(option: &str, value: &str) -> bool {
 
 pub fn use_ws() -> bool {
     // Tudo pela 443 (wss://dominio/ws/id e /ws/relay via NPM). O hbbs da Vancin
-    // (github.com/jonathangmmuller/suporte-server) aceita registro por WebSocket;
-    // "allow-websocket = N" volta ao modo UDP/TCP 7115-7119.
-    let option = keys::OPTION_ALLOW_WEBSOCKET;
-    Config::get_option(option) != "N"
+    // (github.com/jonathangmmuller/suporte-server) aceita registro por WebSocket.
+    // Sempre ligado: as portas 7115-7119 foram fechadas nas bordas em 13/11/2026 e um
+    // "allow-websocket = N" gravado em PC antigo deixava o app preso em "Conectando".
+    true
 }
 
 pub fn allow_insecure_tls_fallback() -> bool {
