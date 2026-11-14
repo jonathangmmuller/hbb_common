@@ -2897,6 +2897,11 @@ fn is_option_can_save(
 
 #[inline]
 pub fn is_incoming_only() -> bool {
+    // Build de cliente (SUPORTE_SOMENTE_ENTRADA=1 na compilação): só recebe acesso,
+    // sem campo nem caminho para conectar em outra máquina. A build de gerência não define.
+    if option_env!("SUPORTE_SOMENTE_ENTRADA") == Some("1") {
+        return true;
+    }
     HARD_SETTINGS
         .read()
         .unwrap()
@@ -2906,6 +2911,9 @@ pub fn is_incoming_only() -> bool {
 
 #[inline]
 pub fn is_outgoing_only() -> bool {
+    if option_env!("SUPORTE_SOMENTE_ENTRADA") == Some("1") {
+        return false;
+    }
     HARD_SETTINGS
         .read()
         .unwrap()
